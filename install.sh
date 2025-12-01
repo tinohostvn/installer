@@ -126,16 +126,22 @@ function Set_Dir(){
     fi
 }
 
-ACCELERATOR_URL="https://docker.1panel.live"
+ACCELERATOR_URLS='    "https://docker.1panel.live",
+    "https://docker.1panel.dev",
+    "https://docker.1ms.run"'
 DAEMON_JSON="/etc/docker/daemon.json"
 BACKUP_FILE="/etc/docker/daemon.json.1panel_bak"
 
 function create_daemon_json() {
     log "$TXT_CREATE_NEW_CONFIG ${DAEMON_JSON}..."
     mkdir -p /etc/docker
-    echo '{
-        "registry-mirrors": ["'"$ACCELERATOR_URL"'"]
-    }' | tee "$DAEMON_JSON" > /dev/null
+    cat > /etc/docker/daemon.json <<EOF
+{
+  "registry-mirrors": [
+$ACCELERATOR_URLS
+  ]
+}
+EOF
     log "$TXT_ACCELERATION_CONFIG_ADDED"
 }
 
@@ -145,7 +151,7 @@ function configure_accelerator() {
         case "$configure_accelerator" in
             [yY])
                 if ping -c 1 mirror.ccs.tencentyun.com &>/dev/null; then
-                    ACCELERATOR_URL="https://mirror.ccs.tencentyun.com"
+                    ACCELERATOR_URLS='    "https://mirror.ccs.tencentyun.com"'
                     log "$TXT_USING_TENCENT_MIRROR"
                 fi
 
