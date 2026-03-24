@@ -1,15 +1,15 @@
 #!/sbin/openrc-run
 
-name="1panel-agent"
-description="1Panel Agent Service Daemon"
-command="/usr/bin/1panel-agent"
+name="tinohost-agent"
+description="TinoHost Agent Service Daemon"
+command="/usr/bin/tinohost-agent"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
 respawn_delay=5
 respawn_max=0
 
 depend() {
-    after syslog network-online 1panel-core
+    after syslog network-online tinohost-core
 }
 
 start_pre() {

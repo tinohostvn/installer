@@ -64,7 +64,7 @@ PASSWORD_MASK="**********"
 
 function log() {
     timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-    message="[1Panel ${timestamp} install Log]: $1 "
+    message="[TinoHost ${timestamp} install Log]: $1 "
     case "$1" in
         *"$TXT_RUN_AS_ROOT"*)
             echo -e "${RED}${message}${NC}" 2>&1 | tee -a ${LOG_FILE}
@@ -81,12 +81,12 @@ function log() {
     esac
 }
 cat << EOF
- ██╗    ██████╗  █████╗ ███╗   ██╗███████╗██╗     
-███║    ██╔══██╗██╔══██╗████╗  ██║██╔════╝██║     
-╚██║    ██████╔╝███████║██╔██╗ ██║█████╗  ██║     
- ██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║     
- ██║    ██║     ██║  ██║██║ ╚████║███████╗███████╗
- ╚═╝    ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+ ████████╗██╗███╗   ██╗ ██████╗ ██╗  ██╗ ██████╗ ███████╗████████╗
+ ╚══██╔══╝██║████╗  ██║██╔═══██╗██║  ██║██╔═══██╗██╔════╝╚══██╔══╝
+    ██║   ██║██╔██╗ ██║██║   ██║███████║██║   ██║███████╗   ██║
+    ██║   ██║██║╚██╗██║██║   ██║██╔══██║██║   ██║╚════██║   ██║
+    ██║   ██║██║ ╚████║╚██████╔╝██║  ██║╚██████╔╝███████║   ██║
+    ╚═╝   ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝
 EOF
 
 log "$TXT_START_INSTALLATION"
@@ -99,7 +99,7 @@ function Check_Root() {
 }
 
 function Prepare_System(){
-    if which 1panel >/dev/null 2>&1; then
+    if which tinohost >/dev/null 2>&1; then
         log "$TXT_PANEL_ALREADY_INSTALLED"
         exit 1
     fi
@@ -128,28 +128,33 @@ function Set_Dir(){
         log "$TXT_TIMEOUT_USE_DEFAULT_PATH"
     fi
 
-    if [[ -f "$PANEL_BASE_DIR/1panel/db/core.db" ]]; then
+    if [[ -f "$PANEL_BASE_DIR/tinohost/db/core.db" ]]; then
         USE_EXISTING=true
     fi
 }
 
-ACCELERATOR_URLS='    "https://docker.1panel.live",
-    "https://docker.1panel.dev",
-    "https://docker.1ms.run"'
+ACCELERATOR_URLS=''
 DAEMON_JSON="/etc/docker/daemon.json"
-BACKUP_FILE="/etc/docker/daemon.json.1panel_bak"
+BACKUP_FILE="/etc/docker/daemon.json.tinohost_bak"
 
 function create_daemon_json() {
     log "$TXT_CREATE_NEW_CONFIG ${DAEMON_JSON}..."
     mkdir -p /etc/docker
-    cat > /etc/docker/daemon.json <<EOF
+    if [ -n "$ACCELERATOR_URLS" ]; then
+        cat > /etc/docker/daemon.json <<EOF
 {
   "registry-mirrors": [
 $ACCELERATOR_URLS
   ]
 }
 EOF
-    log "$TXT_ACCELERATION_CONFIG_ADDED"
+        log "$TXT_ACCELERATION_CONFIG_ADDED"
+    else
+        cat > /etc/docker/daemon.json <<EOF
+{}
+EOF
+        log "Using Docker Hub directly (no mirrors configured)"
+    fi
 }
 
 function configure_accelerator() {
@@ -382,6 +387,141 @@ function Install_Docker(){
     fi
 }
 
+function Install_Nginx(){
+    if which nginx >/dev/null 2>&1; then
+        log "Nginx is already installed, skipping..."
+        return
+    fi
+
+    log "Installing Nginx..."
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update
+        apt-get install -y nginx
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y nginx
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y nginx
+    else
+        log "Unable to install Nginx: unsupported package manager"
+        return 1
+    fi
+
+    if command -v systemctl &>/dev/null; then
+        systemctl enable nginx
+        systemctl start nginx
+    else
+        service nginx start
+    fi
+    log "Nginx installed successfully"
+}
+
+function Install_Multi_PHP(){
+    log "Installing multi-PHP versions via ondrej/sury PPA..."
+
+    if ! command -v apt-get >/dev/null 2>&1; then
+        log "Multi-PHP installation is only supported on Debian/Ubuntu systems"
+        return 1
+    fi
+
+    apt-get update
+    apt-get install -y software-properties-common
+    add-apt-repository -y ppa:ondrej/php
+    apt-get update
+
+    PHP_VERSIONS=("7.4" "8.0" "8.1" "8.2" "8.3")
+    PHP_MODULES="cli fpm common mysql zip gd mbstring curl xml bcmath intl soap imap readline opcache"
+
+    for ver in "${PHP_VERSIONS[@]}"; do
+        log "Installing PHP ${ver}-fpm and common modules..."
+        PKGS="php${ver}-fpm"
+        for mod in $PHP_MODULES; do
+            PKGS="$PKGS php${ver}-${mod}"
+        done
+        apt-get install -y $PKGS 2>&1 | tee -a ${LOG_FILE}
+
+        if command -v systemctl &>/dev/null; then
+            systemctl enable php${ver}-fpm
+            systemctl start php${ver}-fpm
+        fi
+    done
+
+    log "Multi-PHP installation completed (7.4, 8.0, 8.1, 8.2, 8.3)"
+}
+
+function Install_MariaDB(){
+    if which mariadb >/dev/null 2>&1 || which mysql >/dev/null 2>&1; then
+        log "MariaDB/MySQL is already installed, skipping..."
+        return
+    fi
+
+    log "Installing MariaDB..."
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update
+        apt-get install -y mariadb-server
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y mariadb-server
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y mariadb-server
+    else
+        log "Unable to install MariaDB: unsupported package manager"
+        return 1
+    fi
+
+    if command -v systemctl &>/dev/null; then
+        systemctl enable mariadb
+        systemctl start mariadb
+    else
+        service mariadb start
+    fi
+    log "MariaDB installed successfully"
+}
+
+function Install_PureFTPd(){
+    if which pure-ftpd >/dev/null 2>&1; then
+        log "Pure-FTPd is already installed, skipping..."
+        return
+    fi
+
+    log "Installing Pure-FTPd..."
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update
+        apt-get install -y pure-ftpd
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y epel-release
+        yum install -y pure-ftpd
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y epel-release
+        dnf install -y pure-ftpd
+    else
+        log "Unable to install Pure-FTPd: unsupported package manager"
+        return 1
+    fi
+
+    if command -v systemctl &>/dev/null; then
+        systemctl enable pure-ftpd
+        systemctl start pure-ftpd
+    else
+        service pure-ftpd start
+    fi
+    log "Pure-FTPd installed successfully"
+}
+
+function Generate_API_Key(){
+    API_KEY=$(cat /dev/urandom | head -n 32 | md5sum | head -c 32)
+    TINOHOST_CONF_DIR="/etc/tinohost"
+
+    mkdir -p "$TINOHOST_CONF_DIR"
+    echo "$API_KEY" > "$TINOHOST_CONF_DIR/api.key"
+    chmod 600 "$TINOHOST_CONF_DIR/api.key"
+
+    log ""
+    log "================================================================"
+    log "TinoHost API Key: $API_KEY"
+    log "Stored at: $TINOHOST_CONF_DIR/api.key"
+    log "================================================================"
+    log ""
+}
+
 function Set_Port(){
     DEFAULT_PORT=$(expr $RANDOM % 55535 + 10000)
 
@@ -547,38 +687,38 @@ function Set_Password(){
 }
 
 init_configure() {
-    cp ./1panel-core /usr/local/bin && chmod +x /usr/local/bin/1panel-core
-    if [[ -e /usr/bin/1panel ]]; then
-        rm -f /usr/bin/1panel
+    cp ./tinohost-core /usr/local/bin && chmod +x /usr/local/bin/tinohost-core
+    if [[ -e /usr/bin/tinohost ]]; then
+        rm -f /usr/bin/tinohost
     fi
-    ln -s /usr/local/bin/1panel-core /usr/bin/1panel >/dev/null 2>&1
-    if [[ ! -f /usr/bin/1panel-core ]]; then
-        ln -s /usr/local/bin/1panel-core /usr/bin/1panel-core >/dev/null 2>&1
-    fi
-
-    cp ./1panel-agent /usr/local/bin && chmod +x /usr/local/bin/1panel-agent
-    if [[ ! -f /usr/bin/1panel-agent ]]; then
-        ln -s /usr/local/bin/1panel-agent /usr/bin/1panel-agent >/dev/null 2>&1
+    ln -s /usr/local/bin/tinohost-core /usr/bin/tinohost >/dev/null 2>&1
+    if [[ ! -f /usr/bin/tinohost-core ]]; then
+        ln -s /usr/local/bin/tinohost-core /usr/bin/tinohost-core >/dev/null 2>&1
     fi
 
-    cp ./1pctl /usr/local/bin && chmod +x /usr/local/bin/1pctl
-    sed -i -e "s#BASE_DIR=.*#BASE_DIR=${PANEL_BASE_DIR}#g" /usr/local/bin/1pctl
-    sed -i -e "s#ORIGINAL_PORT=.*#ORIGINAL_PORT=${PANEL_PORT}#g" /usr/local/bin/1pctl
-    sed -i -e "s#ORIGINAL_USERNAME=.*#ORIGINAL_USERNAME=${PANEL_USERNAME}#g" /usr/local/bin/1pctl
+    cp ./tinohost-agent /usr/local/bin && chmod +x /usr/local/bin/tinohost-agent
+    if [[ ! -f /usr/bin/tinohost-agent ]]; then
+        ln -s /usr/local/bin/tinohost-agent /usr/bin/tinohost-agent >/dev/null 2>&1
+    fi
+
+    cp ./thctl /usr/local/bin && chmod +x /usr/local/bin/thctl
+    sed -i -e "s#BASE_DIR=.*#BASE_DIR=${PANEL_BASE_DIR}#g" /usr/local/bin/thctl
+    sed -i -e "s#ORIGINAL_PORT=.*#ORIGINAL_PORT=${PANEL_PORT}#g" /usr/local/bin/thctl
+    sed -i -e "s#ORIGINAL_USERNAME=.*#ORIGINAL_USERNAME=${PANEL_USERNAME}#g" /usr/local/bin/thctl
     ESCAPED_PANEL_PASSWORD=$(echo "$PANEL_PASSWORD" | sed 's/[!@#$%*_,.?]/\\&/g')
-    sed -i -e "s#ORIGINAL_PASSWORD=.*#ORIGINAL_PASSWORD=${ESCAPED_PANEL_PASSWORD}#g" /usr/local/bin/1pctl
-    sed -i -e "s#ORIGINAL_ENTRANCE=.*#ORIGINAL_ENTRANCE=${PANEL_ENTRANCE}#g" /usr/local/bin/1pctl
-    sed -i -e "s#LANGUAGE=.*#LANGUAGE=${selected_lang}#g" /usr/local/bin/1pctl
-    sed -i -e "s#^PANEL_EDITION=.*#PANEL_EDITION=${selected_edition}#g" /usr/local/bin/1pctl
+    sed -i -e "s#ORIGINAL_PASSWORD=.*#ORIGINAL_PASSWORD=${ESCAPED_PANEL_PASSWORD}#g" /usr/local/bin/thctl
+    sed -i -e "s#ORIGINAL_ENTRANCE=.*#ORIGINAL_ENTRANCE=${PANEL_ENTRANCE}#g" /usr/local/bin/thctl
+    sed -i -e "s#LANGUAGE=.*#LANGUAGE=${selected_lang}#g" /usr/local/bin/thctl
+    sed -i -e "s#^PANEL_EDITION=.*#PANEL_EDITION=${selected_edition}#g" /usr/local/bin/thctl
     if [[ "$USE_EXISTING" == true ]]; then
-        if grep -q "^CHANGE_USER_INFO=" "/usr/local/bin/1pctl"; then
-            sed -i 's/^CHANGE_USER_INFO=.*/CHANGE_USER_INFO=use_existing/' "/usr/local/bin/1pctl"
+        if grep -q "^CHANGE_USER_INFO=" "/usr/local/bin/thctl"; then
+            sed -i 's/^CHANGE_USER_INFO=.*/CHANGE_USER_INFO=use_existing/' "/usr/local/bin/thctl"
         else
-            sed -i '/^LANGUAGE=.*/a CHANGE_USER_INFO=use_existing' "/usr/local/bin/1pctl"
+            sed -i '/^LANGUAGE=.*/a CHANGE_USER_INFO=use_existing' "/usr/local/bin/thctl"
         fi
     fi
-    if [[ ! -f /usr/bin/1pctl ]]; then
-        ln -s /usr/local/bin/1pctl /usr/bin/1pctl >/dev/null 2>&1
+    if [[ ! -f /usr/bin/thctl ]]; then
+        ln -s /usr/local/bin/thctl /usr/bin/thctl >/dev/null 2>&1
     fi
 
     if [ -d "$RUN_BASE_DIR/geo" ]; then
@@ -593,46 +733,46 @@ init_configure() {
 install_and_configure() {
     if command -v systemctl &>/dev/null; then
         init_configure
-        cp ./initscript/1panel-core.service /etc/systemd/system
-        cp ./initscript/1panel-agent.service /etc/systemd/system
-        systemctl enable 1panel-agent.service; systemctl enable 1panel-core.service; systemctl daemon-reload 2>&1 | tee -a ${LOG_FILE}
+        cp ./initscript/tinohost-core.service /etc/systemd/system
+        cp ./initscript/tinohost-agent.service /etc/systemd/system
+        systemctl enable tinohost-agent.service; systemctl enable tinohost-core.service; systemctl daemon-reload 2>&1 | tee -a ${LOG_FILE}
         log "$TXT_START_PANEL_SERVICE"
-        systemctl start 1panel-core | tee -a ${LOG_FILE}
-        systemctl start 1panel-agent | tee -a ${LOG_FILE}
+        systemctl start tinohost-core | tee -a ${LOG_FILE}
+        systemctl start tinohost-agent | tee -a ${LOG_FILE}
     else
      	mkdir -p /usr/local/bin
 	    init_configure
         if [ -f /etc/rc.common ]; then
-            cp ./initscript/1panel-core.procd /etc/init.d/1panel-core
-            cp ./initscript/1panel-agent.procd /etc/init.d/1panel-agent
-            chmod +x /etc/init.d/1panel-core
-            chmod +x /etc/init.d/1panel-agent
-            /etc/init.d/1panel-core enable | tee -a ${LOG_FILE}
-            /etc/init.d/1panel-agent enable | tee -a ${LOG_FILE}
+            cp ./initscript/tinohost-core.procd /etc/init.d/tinohost-core
+            cp ./initscript/tinohost-agent.procd /etc/init.d/tinohost-agent
+            chmod +x /etc/init.d/tinohost-core
+            chmod +x /etc/init.d/tinohost-agent
+            /etc/init.d/tinohost-core enable | tee -a ${LOG_FILE}
+            /etc/init.d/tinohost-agent enable | tee -a ${LOG_FILE}
         elif [ -f /sbin/openrc-run ]; then
-            cp ./initscript/1panel-core.openrc /etc/init.d/1panel-core
-            cp ./initscript/1panel-agent.openrc /etc/init.d/1panel-agent
-            chmod +x /etc/init.d/1panel-core
-            chmod +x /etc/init.d/1panel-agent
-            rc-update add 1panel-core default 2>&1 | tee -a ${LOG_FILE}
-            rc-update add 1panel-agent default 2>&1 | tee -a ${LOG_FILE}
+            cp ./initscript/tinohost-core.openrc /etc/init.d/tinohost-core
+            cp ./initscript/tinohost-agent.openrc /etc/init.d/tinohost-agent
+            chmod +x /etc/init.d/tinohost-core
+            chmod +x /etc/init.d/tinohost-agent
+            rc-update add tinohost-core default 2>&1 | tee -a ${LOG_FILE}
+            rc-update add tinohost-agent default 2>&1 | tee -a ${LOG_FILE}
         else
-            cp ./initscript/1panel-core.init /etc/init.d/1panel-core
-            cp ./initscript/1panel-agent.init /etc/init.d/1panel-agent
-            chmod +x /etc/init.d/1panel-core
-            chmod +x /etc/init.d/1panel-agent
-            /etc/init.d/1panel-core enable | tee -a ${LOG_FILE}
-            /etc/init.d/1panel-agent enable | tee -a ${LOG_FILE}
+            cp ./initscript/tinohost-core.init /etc/init.d/tinohost-core
+            cp ./initscript/tinohost-agent.init /etc/init.d/tinohost-agent
+            chmod +x /etc/init.d/tinohost-core
+            chmod +x /etc/init.d/tinohost-agent
+            /etc/init.d/tinohost-core enable | tee -a ${LOG_FILE}
+            /etc/init.d/tinohost-agent enable | tee -a ${LOG_FILE}
         fi
-        /etc/init.d/1panel-core start | tee -a ${LOG_FILE}
-        /etc/init.d/1panel-agent start | tee -a ${LOG_FILE}
+        /etc/init.d/tinohost-core start | tee -a ${LOG_FILE}
+        /etc/init.d/tinohost-agent start | tee -a ${LOG_FILE}
     fi
 }
 
 function Init_Panel(){
     log "$TXT_CONFIGURE_PANEL_SERVICE"
     MAX_ATTEMPTS=5
-    RUN_BASE_DIR=$PANEL_BASE_DIR/1panel
+    RUN_BASE_DIR=$PANEL_BASE_DIR/tinohost
     mkdir -p "$RUN_BASE_DIR"
     if [[ "$USE_EXISTING" == false ]]; then
         rm -rf $RUN_BASE_DIR/* 2>/dev/null
@@ -644,22 +784,22 @@ function Init_Panel(){
 
     for attempt in $(seq 1 $MAX_ATTEMPTS); do
         if command -v systemctl >/dev/null 2>&1; then
-            core_status=$(systemctl status 1panel-core 2>&1 | grep Active)
-            agent_status=$(systemctl status 1panel-agent 2>&1 | grep Active)
+            core_status=$(systemctl status tinohost-core 2>&1 | grep Active)
+            agent_status=$(systemctl status tinohost-agent 2>&1 | grep Active)
             if [[ "$core_status" == *running* && "$agent_status" == *running* ]]; then
                 log "$TXT_PANEL_SERVICE_START_SUCCESS"
                 break
             fi
         elif command -v opkg >/dev/null 2>&1; then
-            core_status=$(/etc/init.d/1panel-core status 2>&1)
-            agent_status=$(/etc/init.d/1panel-agent status 2>&1)
+            core_status=$(/etc/init.d/tinohost-core status 2>&1)
+            agent_status=$(/etc/init.d/tinohost-agent status 2>&1)
             if [[ "$core_status" == *running* && "$agent_status" == *running* ]]; then
                 log "$TXT_PANEL_SERVICE_START_SUCCESS"
                 break
             fi
         else
-            core_status=$(service 1panel-core status >/dev/null 2>&1 && echo active || echo inactive)
-            agent_status=$(service 1panel-agent status >/dev/null 2>&1 && echo active || echo inactive)
+            core_status=$(service tinohost-core status >/dev/null 2>&1 && echo active || echo inactive)
+            agent_status=$(service tinohost-agent status >/dev/null 2>&1 && echo active || echo inactive)
             if [[ "$core_status" == "active" && "$agent_status" == "active" ]]; then
                 log "$TXT_PANEL_SERVICE_START_SUCCESS"
                 break
@@ -701,7 +841,7 @@ function Get_Ip(){
     fi
     if echo "$PUBLIC_IP" | grep -q ":"; then
         PUBLIC_IP=[${PUBLIC_IP}]
-        1pctl listen-ip ipv6
+        thctl listen-ip ipv6
     fi
 }
 
@@ -721,12 +861,12 @@ function Check_Ready() {
         i=$((i + 1))
     done
 
-    if [ ! -e /etc/1panel/agent.sock ]; then
-        /usr/local/bin/1pctl restart >/dev/null 2>&1
+    if [ ! -e /etc/tinohost/agent.sock ]; then
+        /usr/local/bin/thctl restart >/dev/null 2>&1
     fi
 
     if [[ "$USE_EXISTING" == false ]]; then
-        sed -i -e "s#ORIGINAL_PASSWORD=.*#ORIGINAL_PASSWORD=${PASSWORD_MASK}#g" /usr/local/bin/1pctl
+        sed -i -e "s#ORIGINAL_PASSWORD=.*#ORIGINAL_PASSWORD=${PASSWORD_MASK}#g" /usr/local/bin/thctl
     fi
 }
 
@@ -758,6 +898,10 @@ function main(){
     Prepare_System
     Set_Dir
     Install_Docker
+    Install_Nginx
+    Install_Multi_PHP
+    Install_MariaDB
+    Install_PureFTPd
     Set_Port
     Set_Firewall
     Set_Entrance
@@ -766,6 +910,7 @@ function main(){
     Init_Panel
     Get_Ip
     Check_Ready
+    Generate_API_Key
     Show_Result
 }
 main

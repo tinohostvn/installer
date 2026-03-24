@@ -1,10 +1,10 @@
 [Unit]
-Description=1Panel, a modern open source linux panel
+Description=TinoHost, a modern open source linux panel
 After=syslog.target network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/1panel-core
+ExecStart=/usr/bin/tinohost-agent
 ExecReload=/bin/kill -s HUP $MAINPID
 
 Restart=always

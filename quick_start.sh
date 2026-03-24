@@ -30,25 +30,25 @@ else
     fi
 fi
 
-VERSION=$(curl -s https://resource.1panel.pro/v2/${INSTALL_MODE}/latest)
-HASH_FILE_URL="https://resource.1panel.pro/v2/${INSTALL_MODE}/${VERSION}/release/checksums.txt"
+VERSION=$(curl -s https://resource.tinohost.com/v2/${INSTALL_MODE}/latest)
+HASH_FILE_URL="https://resource.tinohost.com/v2/${INSTALL_MODE}/${VERSION}/release/checksums.txt"
 
 if [[ "x${VERSION}" == "x" ]]; then
     echo "Failed to fetch the latest version (mode: ${INSTALL_MODE}). Please try again later."
     exit 1
 fi
 
-PACKAGE_FILE_NAME="1panel-${VERSION}-linux-${architecture}.tar.gz"
-PACKAGE_DOWNLOAD_URL="https://resource.1panel.pro/v2/${INSTALL_MODE}/${VERSION}/release/${PACKAGE_FILE_NAME}"
+PACKAGE_FILE_NAME="tinohost-${VERSION}-linux-${architecture}.tar.gz"
+PACKAGE_DOWNLOAD_URL="https://resource.tinohost.com/v2/${INSTALL_MODE}/${VERSION}/release/${PACKAGE_FILE_NAME}"
 EXPECTED_HASH=$(curl -s "$HASH_FILE_URL" | grep "$PACKAGE_FILE_NAME" | awk '{print $1}')
 
 if [[ -f ${PACKAGE_FILE_NAME} ]]; then
     actual_hash=$(sha256sum "$PACKAGE_FILE_NAME" | awk '{print $1}')
     if [[ "$EXPECTED_HASH" == "$actual_hash" ]]; then
         echo "Local package found and checksum verified. Skipping download."
-        rm -rf 1panel-${VERSION}-linux-${architecture}
+        rm -rf tinohost-${VERSION}-linux-${architecture}
         tar zxf ${PACKAGE_FILE_NAME}
-        cd 1panel-${VERSION}-linux-${architecture}
+        cd tinohost-${VERSION}-linux-${architecture}
         echo "$PANEL_EDITION" > "$EDITION_FILE"
         /bin/bash install.sh
         exit 0
@@ -58,7 +58,7 @@ if [[ -f ${PACKAGE_FILE_NAME} ]]; then
     fi
 fi
 
-echo "Preparing to download 1Panel ${VERSION} (${architecture}, mode: ${INSTALL_MODE})."
+echo "Preparing to download TinoHost ${VERSION} (${architecture}, mode: ${INSTALL_MODE})."
 echo "Download URL: ${PACKAGE_DOWNLOAD_URL}"
 
 curl -LOk ${PACKAGE_DOWNLOAD_URL}
@@ -73,7 +73,7 @@ if [[ $? != 0 ]]; then
     rm -f ${PACKAGE_FILE_NAME}
     exit 1
 fi
-cd 1panel-${VERSION}-linux-${architecture}
+cd tinohost-${VERSION}-linux-${architecture}
 echo "$PANEL_EDITION" > "$EDITION_FILE"
 
 /bin/bash install.sh

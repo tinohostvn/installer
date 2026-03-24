@@ -1,8 +1,8 @@
 #!/sbin/openrc-run
 
-name="1panel-core"
-description="1Panel Core Service Daemon"
-command="/usr/bin/1panel-core"
+name="tinohost-core"
+description="TinoHost Core Service Daemon"
+command="/usr/bin/tinohost-core"
 command_background=true
 pidfile="/run/${RC_SVCNAME}.pid"
 respawn_delay=5

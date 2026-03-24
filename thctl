@@ -56,8 +56,8 @@ print_centered_title() {
 function usage() {
     print_centered_title "$TXT_PANEL_CONTROL_SCRIPT" 60 "-" "$BLUE"
     echo -e  "${YELLOW}Usage:${NC}"
-    echo "  ./1pctl [COMMAND] [ARGS...]"
-    echo "  ./1pctl --help"
+    echo "  ./thctl [COMMAND] [ARGS...]"
+    echo "  ./thctl --help"
     echo
     echo -e "${YELLOW}Commands:${NC}"
     echo -e "  ${GREEN}status${NC} [core|agent]         ${YELLOW}$TXT_PANEL_SERVICE_STATUS${NC}"
@@ -118,7 +118,7 @@ function status() {
     print_centered_title "$TXT_PANEL_SERVICE_STATUS" 60 "-" "$BLUE"
     if [[ -z "$target" ]] || [[ "$target" == "all" ]]; then
         for svc in core agent; do
-            _service_cmd 1panel-$svc "status" \
+            _service_cmd tinohost-$svc "status" \
                 "🟢[OK]$TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_PANEL_GEN_STATUS_RUNNING" \
                 "🔴[FAIL]$TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_PANEL_GEN_STATUS_STOPPED"
         done
@@ -126,7 +126,7 @@ function status() {
     else
         case "$target" in
             core|agent)
-                _service_cmd 1panel-$target "status" \
+                _service_cmd tinohost-$target "status" \
                     "🟢[OK]$TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_PANEL_GEN_STATUS_RUNNING" \
                     "🔴[FAIL]$TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_PANEL_GEN_STATUS_STOPPED"
                 ;;
@@ -142,14 +142,14 @@ function start() {
     print_centered_title "$TXT_PANEL_SERVICE_START" 60 "-" "$BLUE"
     if [[ -z "$target" ]] || [[ "$target" == "all" ]]; then
         for svc in core agent; do
-            _service_cmd 1panel-$svc "start" \
+            _service_cmd tinohost-$svc "start" \
                 "🟢[OK]$TXT_PANEL_GEN_START $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_SUCCESSFULLY_MESSAGE" \
                 "🔴[FAIL]$TXT_PANEL_GEN_START $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_FAIELD_MESSAGE"
         done
     else
         case "$target" in
             core|agent)
-                _service_cmd 1panel-$target "start" \
+                _service_cmd tinohost-$target "start" \
                 "🟢[OK]$TXT_PANEL_GEN_START $TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_SUCCESSFULLY_MESSAGE" \
                 "🔴[FAIL]$TXT_PANEL_GEN_START $TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_FAIELD_MESSAGE"
                 ;;
@@ -166,12 +166,12 @@ function stop() {
     check_root
     if [[ -z "$target" ]] || [[ "$target" == "all" ]]; then
         for svc in core agent; do
-            _service_cmd 1panel-$svc "stop" \
+            _service_cmd tinohost-$svc "stop" \
                 "🟢[OK]$TXT_PANEL_GEN_STOP $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_SUCCESSFULLY_MESSAGE" \
                 "🔴[FAIL]$TXT_PANEL_GEN_STOP $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_FAIELD_MESSAGE"
         done
     else
-        _service_cmd 1panel-$target "stop" \
+        _service_cmd tinohost-$target "stop" \
         "🟢[OK]$TXT_PANEL_GEN_STOP $TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_SUCCESSFULLY_MESSAGE" \
         "🔴[FAIL]$TXT_PANEL_GEN_STOP $TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_FAIELD_MESSAGE"
     fi
@@ -183,14 +183,14 @@ function restart() {
     check_root
     if [[ -z "$target" ]] || [[ "$target" == "all" ]]; then
         for svc in core agent; do
-            _service_cmd 1panel-$svc "restart" \
+            _service_cmd tinohost-$svc "restart" \
                 "🟢[OK]$TXT_PANEL_GEN_RESTART $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_SUCCESSFULLY_MESSAGE" \
                 "🔴[FAIL]$TXT_PANEL_GEN_RESTART $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_FAIELD_MESSAGE"
         done
     else
-        _service_cmd 1panel-$target "restart" \
-        "🟢[OK]$TXT_PANEL_GEN_RESTART 1Panel-$target: $TXT_SUCCESSFULLY_MESSAGE" \
-        "🔴[FAIL]$TXT_PANEL_GEN_RESTART 1Panel-$target: $TXT_FAIELD_MESSAGE"
+        _service_cmd tinohost-$target "restart" \
+        "🟢[OK]$TXT_PANEL_GEN_RESTART TinoHost-$target: $TXT_SUCCESSFULLY_MESSAGE" \
+        "🔴[FAIL]$TXT_PANEL_GEN_RESTART TinoHost-$target: $TXT_FAIELD_MESSAGE"
     fi
     generate_border_line 60 "-" "$YELLOW"
 }
@@ -207,39 +207,39 @@ function uninstall() {
                 
                 case $service_manager in
                     systemctl)
-                        systemctl stop 1panel-core.service
-                        systemctl stop 1panel-agent.service
-                        systemctl disable 1panel-core.service >/dev/null 2>&1
-                        systemctl disable 1panel-agent.service >/dev/null 2>&1
-                        rm -rf /etc/systemd/system/{1panel-core.service,1panel-agent.service}
+                        systemctl stop tinohost-core.service
+                        systemctl stop tinohost-agent.service
+                        systemctl disable tinohost-core.service >/dev/null 2>&1
+                        systemctl disable tinohost-agent.service >/dev/null 2>&1
+                        rm -rf /etc/systemd/system/{tinohost-core.service,tinohost-agent.service}
                         echo -e "$TXT_PANEL_SERVICE_UNINSTALL_REMOVE_CONFIG"
                         systemctl daemon-reload
                         systemctl reset-failed
                         ;;
                     openrc)
-                        rc-service 1panel-core stop
-                        rc-service 1panel-agent stop
-                        rc-update del 1panel-core >/dev/null 2>&1
-                        rc-update del 1panel-agent >/dev/null 2>&1
-                        rm -rf /etc/init.d/{1panel-core,1panel-agent}
+                        rc-service tinohost-core stop
+                        rc-service tinohost-agent stop
+                        rc-update del tinohost-core >/dev/null 2>&1
+                        rc-update del tinohost-agent >/dev/null 2>&1
+                        rm -rf /etc/init.d/{tinohost-core,tinohost-agent}
                         ;;
                     *)
-                        service 1panel-core stop
-                        service 1panel-agent stop
-                        rm -rf /etc/init.d/{1panel-core,1panel-agent}
+                        service tinohost-core stop
+                        service tinohost-agent stop
+                        rm -rf /etc/init.d/{tinohost-core,tinohost-agent}
                         ;;
                 esac
 
-                rm -rf /usr/local/bin/{1pctl,1panel-core,1panel-agent,lang} \
-                        /usr/bin/{1pctl,1panel,1panel-core,1panel-agent} \
-                        /etc/1panel
+                rm -rf /usr/local/bin/{thctl,tinohost-core,tinohost-agent,lang} \
+                        /usr/bin/{thctl,tinohost,tinohost-core,tinohost-agent} \
+                        /etc/tinohost
 
                 while true; do
                     read -p "$TXT_PANEL_DATA_KEEP_PROMPT" keep_data
                     case $keep_data in
                         [Yy] )
                             echo "$TXT_PANEL_DATA_DELETE"
-                            rm -rf $BASE_DIR/1panel
+                            rm -rf $BASE_DIR/tinohost
                             break
                             ;;
                         [Nn] )
@@ -268,7 +268,7 @@ function uninstall() {
 
 function user-info() {
     print_centered_title "$TXT_PANEL_SERVICE_USER_INFO" 60 "=" "$BLUE"
-    1panel -l $LANGUAGE user-info
+    tinohost -l $LANGUAGE user-info
     generate_border_line 60 "-" "$BLUE"
 }
 
@@ -276,17 +276,17 @@ function listen-ip() {
     print_centered_title "$TXT_PANEL_SERVICE_LISTEN_IP" 60 "=" "$BLUE"
     case "${target}" in
         ipv4)
-            1panel -l $LANGUAGE listen-ip ipv4
+            tinohost -l $LANGUAGE listen-ip ipv4
             target=all
             restart
             ;;
         ipv6)
-            1panel -l $LANGUAGE listen-ip ipv6
+            tinohost -l $LANGUAGE listen-ip ipv6
             target=all
             restart
             ;;
         *)
-            1panel -l $LANGUAGE listen-ip
+            tinohost -l $LANGUAGE listen-ip
             ;;
     esac
     generate_border_line 60 "-" "$BLUE"
@@ -299,7 +299,7 @@ function restore() {
         read -p "$TXT_PANEL_SERVICE_RESTORE_NOTICE" yn
         case "$yn" in
             [Yy])
-                1panel -l $LANGUAGE restore
+                tinohost -l $LANGUAGE restore
                 read -t 0.1 _ || true
                 break
                 ;;
@@ -316,7 +316,7 @@ function restore() {
 
 function version() {
     print_centered_title "$TXT_PANEL_SERVICE_VERSION" 60 "-" "$BLUE"
-    1panel -l $LANGUAGE version
+    tinohost -l $LANGUAGE version
     generate_border_line 60 "-" "$BLUE"
 }
 
@@ -325,27 +325,27 @@ function reset() {
     check_root
     case "${target}" in
         domain)
-            1panel -l $LANGUAGE reset domain
+            tinohost -l $LANGUAGE reset domain
             ;;
         entrance)
-            1panel -l $LANGUAGE reset entrance
+            tinohost -l $LANGUAGE reset entrance
             ;;
         https)
-            1panel -l $LANGUAGE reset https
+            tinohost -l $LANGUAGE reset https
             target=all
             restart
             ;;
         ips)
-            1panel -l $LANGUAGE reset ips
+            tinohost -l $LANGUAGE reset ips
             ;;
         mfa)
-            1panel -l $LANGUAGE reset mfa
+            tinohost -l $LANGUAGE reset mfa
             ;;
         passkey)
-            1panel -l $LANGUAGE reset passkey
+            tinohost -l $LANGUAGE reset passkey
             ;;
         *)
-            1panel -l $LANGUAGE reset
+            tinohost -l $LANGUAGE reset
             ;;
     esac
     generate_border_line 60 "-" "$YELLOW"
@@ -356,16 +356,16 @@ function update() {
     check_root
     case "${target}" in
         username)
-            1panel -l $LANGUAGE update username
+            tinohost -l $LANGUAGE update username
             ;;
         password)
-            1panel -l $LANGUAGE update password
+            tinohost -l $LANGUAGE update password
             ;;
         port)
-            1panel -l $LANGUAGE update port
+            tinohost -l $LANGUAGE update port
             ;;
         *)
-            1panel -l $LANGUAGE update
+            tinohost -l $LANGUAGE update
             ;;
     esac
     generate_border_line 60 "-" "$YELLOW"
